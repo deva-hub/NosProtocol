@@ -1,6 +1,8 @@
-defmodule NosProtrocol.World do
+defmodule NosProtocol.World do
   defstruct socket: nil,
             transport: nil,
+            session_crypto: nil,
+            header_crypto: nil,
             client_id: 0,
             packet_id: 0,
             mode: nil,
@@ -9,18 +11,23 @@ defmodule NosProtrocol.World do
   @type t :: %__MODULE__{
           socket: :inet.socket(),
           transport: module,
+          session_crypto: module,
+          header_crypto: module,
           client_id: pos_integer,
           packet_id: pos_integer,
           mode: atom,
           state: atom
         }
 
-  alias NosLib.{HandoffCrypto, WorldCrypto}
+  def open(socket, transport, opts \\ []) do
+    session_crypto = Keyword.fetch!(opts, :session_crypto)
+    header_crypto = Keyword.fetch!(opts, :header_crypto)
 
-  def open(socket, transport) do
     conn = %__MODULE__{
       socket: socket,
-      transport: transport
+      transport: transport,
+      session_crypto: session_crypto,
+      header_crypto: header_crypto
     }
 
     case conn.transport.setopts(conn.socket, active: :once) do
@@ -54,9 +61,9 @@ defmodule NosProtrocol.World do
   end
 
   defp handle_data(conn, data) do
-    packets = decode_packet(conn, data, [])
+    packets = decode_packet(conn, data)
 
-    case process_packets(conn, packets, responses) do
+    case process_packets(conn, packets) do
       {:ok, conn, responses} ->
         {:ok, conn, Enum.reverse(responses)}
 
@@ -76,22 +83,22 @@ defmodule NosProtrocol.World do
     {:error, conn, error, []}
   end
 
-  defp decode_packet(%{state: :open} = conn, data, responses) do
-    case HandoffCrypto.decrypt(data) do
+  defp decode_packet(%{state: :open} = conn, data) do
+    case conn.header_crypto.decrypt(data) do
       "" ->
-        {:error, conn, {:invalid_packet, data}, responses}
+        raise ArgumentError
 
       data ->
         [data]
     end
   end
 
-  defp decode_packet(conn, data, responses) do
-    WorldCrypto.decrypt(data, conn.client_id)
+  defp decode_packet(conn, data) do
+    conn.session_crypto.decrypt(data, conn.client_id)
   end
 
-  def process_packets(conn, packet, responses) do
-    Enum.reduce_while(packet, {:ok, conn, responses}, fn
+  def process_packets(conn, packets, responses \\ []) do
+    Enum.reduce_while(packets, {:ok, conn, responses}, fn
       {id, packet}, {:ok, conn, responses} ->
         conn = %{conn | packet_id: id}
         {:cont, process_packet(conn, packet, responses)}
@@ -125,6 +132,6 @@ defmodule NosProtrocol.World do
   end
 
   def process_packet(conn, packet, responses) do
-    {:ok, conn, [{:command, packet} | responses]}
+    {:ok, conn, [{:packet, packet} | responses]}
   end
 end

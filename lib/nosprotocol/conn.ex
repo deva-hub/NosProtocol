@@ -1,4 +1,4 @@
-defmodule NosProtrocol.Conn do
+defmodule NosProtocol.Conn do
   def render_packet(conn, serializer, template, param \\ []) do
     param = Enum.into(param, %{})
 

@@ -3,7 +3,7 @@ defmodule NosProtocol.MixProject do
 
   def project do
     [
-      app: :noslib,
+      app: :nosprotocol,
       version: "0.1.0",
       elixir: "~> 1.9",
       build_embedded: Mix.env() == :prod,
@@ -27,20 +27,11 @@ defmodule NosProtocol.MixProject do
 
   defp deps do
     [
-      noslib_dep(),
       {:credo, "~> 1.0.0", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0.0-rc.6", only: :dev, runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:recase, "~> 0.4"}
     ]
-  end
-
-  defp noslib_dep do
-    if path = System.get_env("NOSLIB_PATH") do
-      {:myxql, path: path}
-    else
-      {:noslib, "~> 0.1.0", optional: true},
-    end
   end
 
   defp package do

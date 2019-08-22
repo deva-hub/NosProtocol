@@ -1,6 +1,7 @@
-defmodule NosLib.Login do
+defmodule NosProtocol.Login do
   defstruct socket: nil,
             transport: nil,
+            crypto: nil,
             client_version: "",
             state: :open
 
@@ -9,19 +10,19 @@ defmodule NosLib.Login do
   @type t :: %__MODULE__{
           socket: :inet.socket(),
           transport: module,
+          crypto: module,
           client_version: String.t(),
           state: state
         }
 
-  alias NosLib.LoginCrypto
-
   def open(socket, transport, options \\ []) do
     client_version = Keyword.fetch!(options, :client_version)
+    crypto = Keyword.fetch!(options, :crypto)
 
     conn = %__MODULE__{
       socket: socket,
       transport: transport,
-      crypto: LoginCrypto,
+      crypto: crypto,
       client_version: client_version,
       state: :open
     }
@@ -57,7 +58,7 @@ defmodule NosLib.Login do
   end
 
   defp handle_data(conn, data) do
-    {:ok, conn, [{:command, LoginCrypto.decrypt(data)} | responses]}
+    {:ok, conn, [{:packet, conn.crypto.decrypt(data)}]}
   end
 
   defp handle_close(conn) do
