@@ -1,9 +1,8 @@
 defmodule NosProtocol.World do
   defstruct socket: nil,
             transport: nil,
-            session_crypto: nil,
-            header_crypto: nil,
-            client_id: 0,
+            crypto: nil,
+            session_id: 0,
             packet_id: 0,
             mode: nil,
             state: :open
@@ -11,23 +10,20 @@ defmodule NosProtocol.World do
   @type t :: %__MODULE__{
           socket: :inet.socket(),
           transport: module,
-          session_crypto: module,
-          header_crypto: module,
-          client_id: pos_integer,
+          crypto: module,
+          session_id: pos_integer,
           packet_id: pos_integer,
           mode: atom,
           state: atom
         }
 
   def open(socket, transport, opts \\ []) do
-    session_crypto = Keyword.fetch!(opts, :session_crypto)
-    header_crypto = Keyword.fetch!(opts, :header_crypto)
+    crypto = Keyword.fetch!(opts, :crypto)
 
     conn = %__MODULE__{
       socket: socket,
       transport: transport,
-      session_crypto: session_crypto,
-      header_crypto: header_crypto
+      crypto: crypto
     }
 
     case conn.transport.setopts(conn.socket, active: :once) do
@@ -84,7 +80,7 @@ defmodule NosProtocol.World do
   end
 
   defp decode_packet(%{state: :open} = conn, data) do
-    case conn.header_crypto.decrypt(data) do
+    case conn.crypto.decrypt(data) do
       "" ->
         raise ArgumentError
 
@@ -94,7 +90,7 @@ defmodule NosProtocol.World do
   end
 
   defp decode_packet(conn, data) do
-    conn.session_crypto.decrypt(data, conn.client_id)
+    String.split(conn.crypto.decrypt(data, session_id: conn.session_id))
   end
 
   def process_packets(conn, packets, responses \\ []) do
@@ -117,7 +113,7 @@ defmodule NosProtocol.World do
   end
 
   def process_packet(%{state: :open} = conn, packet, responses) do
-    conn = %{conn | client_id: packet, state: :identifier}
+    conn = %{conn | session_id: packet, state: :identifier}
     {:ok, conn, [{:info, packet} | responses]}
   end
 

@@ -58,7 +58,8 @@ defmodule NosProtocol.Login do
   end
 
   defp handle_data(conn, data) do
-    {:ok, conn, [{:packet, conn.crypto.decrypt(data)}]}
+    packet = String.split(conn.crypto.decrypt(data))
+    {:ok, conn, [{:packet, packet}]}
   end
 
   defp handle_close(conn) do
