@@ -1,29 +1,14 @@
 defmodule NosProtocol.World do
-  defstruct socket: nil,
-            transport: nil,
-            crypto: nil,
-            session_id: 0,
-            packet_id: 0,
-            mode: nil,
-            state: :open
-
-  @type t :: %__MODULE__{
-          socket: :inet.socket(),
-          transport: module,
-          crypto: module,
-          session_id: pos_integer,
-          packet_id: pos_integer,
-          mode: atom,
-          state: atom
-        }
+  alias NosProtocol.Conn
 
   def open(socket, transport, opts \\ []) do
     crypto = Keyword.fetch!(opts, :crypto)
 
-    conn = %__MODULE__{
+    conn = %Conn{
       socket: socket,
       transport: transport,
-      crypto: crypto
+      crypto: crypto,
+      state: :open
     }
 
     case conn.transport.setopts(conn.socket, active: :once) do
@@ -35,7 +20,7 @@ defmodule NosProtocol.World do
     end
   end
 
-  def stream(%__MODULE__{socket: socket} = conn, {tag, socket, data})
+  def stream(%Conn{socket: socket} = conn, {tag, socket, data})
       when tag in [:tcp, :ssl] do
     case conn.transport.setopts(conn.socket, active: :once) do
       :ok ->
@@ -46,12 +31,12 @@ defmodule NosProtocol.World do
     end
   end
 
-  def stream(%__MODULE__{socket: socket} = conn, {tag, socket})
+  def stream(%Conn{socket: socket} = conn, {tag, socket})
       when tag in [:tcp_closed, :ssl_closed] do
     handle_close(conn)
   end
 
-  def stream(%__MODULE__{socket: socket} = conn, {tag, socket, reason})
+  def stream(%Conn{socket: socket} = conn, {tag, socket, reason})
       when tag in [:tcp_error, :ssl_error] do
     handle_error(conn, conn.transport.wrap_error(reason))
   end
@@ -64,18 +49,18 @@ defmodule NosProtocol.World do
         {:ok, conn, Enum.reverse(responses)}
 
       {:error, conn, reason, responses} ->
-        conn = %{conn | state: :closed}
+        conn = Conn.put_state(conn, :closed)
         {:error, conn, reason, responses}
     end
   end
 
   defp handle_close(conn) do
-    conn = %{conn | state: :closed}
+    conn = Conn.put_state(conn, :closed)
     {:ok, conn, [:done]}
   end
 
   defp handle_error(conn, error) do
-    conn = %{conn | state: :closed}
+    conn = Conn.put_state(conn, :closed)
     {:error, conn, error, []}
   end
 
@@ -90,13 +75,17 @@ defmodule NosProtocol.World do
   end
 
   defp decode_packet(conn, data) do
-    String.split(conn.crypto.decrypt(data, session_id: conn.session_id))
+    session_id = conn.private[:session_id]
+
+    data
+    |> conn.crypto.decrypt(session_id: session_id)
+    |> String.split()
   end
 
   def process_packets(conn, packets, responses \\ []) do
     Enum.reduce_while(packets, {:ok, conn, responses}, fn
       {id, packet}, {:ok, conn, responses} ->
-        conn = %{conn | packet_id: id}
+        conn = Conn.put_private(conn, :packet_id, id)
         {:cont, process_packet(conn, packet, responses)}
 
       packet, {:ok, conn, responses} ->
@@ -113,21 +102,25 @@ defmodule NosProtocol.World do
   end
 
   def process_packet(%{state: :open} = conn, packet, responses) do
-    conn = %{conn | session_id: packet, state: :identifier}
-    {:ok, conn, [{:info, packet} | responses]}
+    conn = Conn.put_private(conn, :session_id, packet)
+    responses = [{:info, packet} | responses]
+    {:ok, conn, responses}
   end
 
   def process_packet(%{state: :identifier} = conn, packet, responses) do
-    conn = %{conn | state: :password}
-    {:ok, conn, [{:chunk, {conn.packet_id, packet}} | responses]}
+    conn = Conn.put_state(conn, :password)
+    responses = [{:packet, packet} | responses]
+    {:ok, conn, responses}
   end
 
   def process_packet(%{state: :password} = conn, packet, responses) do
-    conn = %{conn | state: :world}
-    {:ok, conn, [{:chunk, {conn.packet_id, packet}} | responses]}
+    conn = Conn.put_state(conn, :world)
+    responses = [{:packet, packet} | responses]
+    {:ok, conn, responses}
   end
 
-  def process_packet(conn, packet, responses) do
-    {:ok, conn, [{:packet, packet} | responses]}
+  def process_packet(%{state: :world} = conn, packet, responses) do
+    responses = [{:packet, packet} | responses]
+    {:ok, conn, responses}
   end
 end
