@@ -42,7 +42,7 @@ defmodule NosProtocol.MixProject do
 
   defp package do
     [
-      files: ["lib", "priv", "mix.exs", "README.md"],
+      files: ["lib", "mix.exs", "README.md"],
       maintainers: ["Shikanime Deva"],
       licenses: ["MIT"],
       links: %{"GitHub" => @repo_url}
