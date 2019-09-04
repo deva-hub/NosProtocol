@@ -101,7 +101,7 @@ defmodule NosProtocol.World do
     |> String.split()
   end
 
-  def process_packets(conn, packets, responses \\ []) do
+  defp process_packets(conn, packets, responses \\ []) do
     Enum.reduce_while(packets, {:ok, conn, responses}, fn
       {id, packet}, {:ok, conn, responses} ->
         conn = Conn.put_private(conn, :packet_id, id)
@@ -115,31 +115,34 @@ defmodule NosProtocol.World do
     end)
   end
 
-  def process_packet(conn, "0", responses) do
+  defp process_packet(conn, "0", responses) do
     responses = [:heartbeat | responses]
     {:ok, conn, responses}
   end
 
-  def process_packet(%{state: :open} = conn, packet, responses) do
+  defp process_packet(%{state: :open} = conn, packet, responses) do
     conn = Conn.put_private(conn, :session_id, packet)
     responses = [{:info, packet} | responses]
     {:ok, conn, responses}
   end
 
-  def process_packet(%{state: :identifier} = conn, packet, responses) do
+  defp process_packet(%{state: :identifier} = conn, packet, responses) do
     conn = Conn.put_state(conn, :password)
-    responses = [{:packet, packet} | responses]
+    responses = [response(packet) | responses]
     {:ok, conn, responses}
   end
 
-  def process_packet(%{state: :password} = conn, packet, responses) do
+  defp process_packet(%{state: :password} = conn, packet, responses) do
     conn = Conn.put_state(conn, :world)
-    responses = [{:packet, packet} | responses]
+    responses = [response(packet) | responses]
     {:ok, conn, responses}
   end
 
-  def process_packet(%{state: :world} = conn, packet, responses) do
-    responses = [{:packet, packet} | responses]
+  defp process_packet(%{state: :world} = conn, packet, responses) do
+    responses = [response(packet) | responses]
     {:ok, conn, responses}
   end
+
+  defp response({number, packet}), do: {:chunk, number, packet}
+  defp response(packet), do: {:packet, packet}
 end
