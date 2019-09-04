@@ -7,7 +7,8 @@ defmodule NosProtocol.Login do
   @type option :: {:crypto, module}
   @type options :: [option]
 
-  @spec open(:inet.socket(), module, options) :: {:ok, Conn.t()} | {:error, term}
+  @spec open(:inet.socket(), module, options) ::
+          {:ok, Conn.t()} | {:error, term}
   def open(socket, transport, opts \\ []) do
     crypto = Keyword.fetch!(opts, :crypto)
 

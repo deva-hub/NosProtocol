@@ -8,8 +8,7 @@ defmodule NosProtocol.World do
   @type options :: [option]
 
   @spec open(:inet.socket(), module, options) ::
-          {:ok, Conn.t()}
-          | {:error, term}
+          {:ok, Conn.t()} | {:error, term}
   def open(socket, transport, opts \\ []) do
     crypto = Keyword.fetch!(opts, :crypto)
 
