@@ -4,18 +4,18 @@ defmodule NosProtocol.Login do
   """
   alias NosProtocol.Conn
 
-  @type option :: {:crypto, module}
+  @type option :: {:encoder, module}
   @type options :: [option]
 
   @spec open(:inet.socket(), module, options) ::
           {:ok, Conn.t()} | {:error, term}
   def open(socket, transport, opts \\ []) do
-    crypto = Keyword.fetch!(opts, :crypto)
+    encoder = Keyword.fetch!(opts, :encoder)
 
     conn = %Conn{
       socket: socket,
       transport: transport,
-      crypto: crypto,
+      encoder: encoder,
       state: :open
     }
 
@@ -61,7 +61,7 @@ defmodule NosProtocol.Login do
   def stream(_conn, _message), do: :unknown
 
   defp handle_data(conn, data) do
-    packet = String.split(conn.crypto.decrypt(data))
+    packet = String.split(conn.encoder.encode(data))
     {:ok, conn, [{:packet, packet}]}
   end
 

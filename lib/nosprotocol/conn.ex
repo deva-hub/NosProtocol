@@ -9,7 +9,7 @@ defmodule NosProtocol.Conn do
 
   defstruct socket: nil,
             transport: nil,
-            crypto: nil,
+            encoder: nil,
             private: %{},
             assigns: %{},
             state: :open
@@ -17,7 +17,7 @@ defmodule NosProtocol.Conn do
   @type t :: %__MODULE__{
           socket: :inet.socket(),
           transport: module,
-          crypto: module,
+          encoder: module,
           private: map,
           assigns: map,
           state: atom
@@ -54,11 +54,11 @@ defmodule NosProtocol.Conn do
   end
 
   @spec render(t, module, any, keyword) :: t
-  def render(conn, serializer, template, param) do
+  def render(conn, encoder, template, param) do
     param = Enum.into(param, %{})
 
     Enum.reduce(
-      serializer.render(template, param),
+      encoder.render(template, param),
       conn,
       &send_packet(&2, &1)
     )
@@ -66,7 +66,7 @@ defmodule NosProtocol.Conn do
 
   @spec send_packet(t, keyword) :: t
   def send_packet(conn, data) do
-    data = conn.crypto.encrypt(data)
+    data = conn.encoder.encode(data)
 
     case conn.transport.send(conn.socket, data) do
       :ok ->

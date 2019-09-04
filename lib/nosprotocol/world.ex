@@ -4,18 +4,18 @@ defmodule NosProtocol.World do
   """
   alias NosProtocol.Conn
 
-  @type option :: {:crypto, module}
+  @type option :: {:encoder, module}
   @type options :: [option]
 
   @spec open(:inet.socket(), module, options) ::
           {:ok, Conn.t()} | {:error, term}
   def open(socket, transport, opts \\ []) do
-    crypto = Keyword.fetch!(opts, :crypto)
+    encoder = Keyword.fetch!(opts, :encoder)
 
     conn = %Conn{
       socket: socket,
       transport: transport,
-      crypto: crypto,
+      encoder: encoder,
       state: :open
     }
 
@@ -84,12 +84,9 @@ defmodule NosProtocol.World do
   end
 
   defp decode_packet(%{state: :open} = conn, data) do
-    case conn.crypto.decrypt(data) do
-      "" ->
-        raise ArgumentError
-
-      data ->
-        [data]
+    case conn.encoder.encode(data) do
+      [] -> raise ArgumentError
+      packets -> packets
     end
   end
 
@@ -97,8 +94,8 @@ defmodule NosProtocol.World do
     session_id = conn.private[:session_id]
 
     data
-    |> conn.crypto.decrypt(session_id: session_id)
-    |> String.split()
+    |> conn.encoder.encode(session_id: session_id)
+    |> Enum.map(&String.split(&1, " ", parts: 2))
   end
 
   defp process_packets(conn, packets, responses \\ []) do
@@ -128,21 +125,21 @@ defmodule NosProtocol.World do
 
   defp process_packet(%{state: :identifier} = conn, packet, responses) do
     conn = Conn.put_state(conn, :password)
-    responses = [response(packet) | responses]
+    responses = [pack_response(packet) | responses]
     {:ok, conn, responses}
   end
 
   defp process_packet(%{state: :password} = conn, packet, responses) do
     conn = Conn.put_state(conn, :world)
-    responses = [response(packet) | responses]
+    responses = [pack_response(packet) | responses]
     {:ok, conn, responses}
   end
 
   defp process_packet(%{state: :world} = conn, packet, responses) do
-    responses = [response(packet) | responses]
+    responses = [pack_response(packet) | responses]
     {:ok, conn, responses}
   end
 
-  defp response({number, packet}), do: {:chunk, number, packet}
-  defp response(packet), do: {:packet, packet}
+  defp pack_response({number, packet}), do: {:chunk, number, packet}
+  defp pack_response(packet), do: {:packet, packet}
 end
