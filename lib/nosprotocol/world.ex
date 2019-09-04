@@ -59,8 +59,7 @@ defmodule NosProtocol.World do
     handle_error(conn, conn.transport.wrap_error(reason))
   end
 
-  def stream(%Conn{socket: socket} = conn, _),
-    do: :unknown
+  def stream(_conn, _message), do: :unknown
 
   defp handle_data(conn, data) do
     packets = decode_packet(conn, data)

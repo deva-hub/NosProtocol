@@ -47,7 +47,7 @@ defmodule NosProtocol.Conn do
     %{conn | private: Enum.into(keyword, private)}
   end
 
-  @spec put_state(t, map) :: t
+  @spec put_state(t, atom) :: t
   def put_state(%__MODULE__{} = conn, state)
       when is_atom(state) do
     %{conn | state: state}
@@ -79,22 +79,16 @@ defmodule NosProtocol.Conn do
     end
   end
 
-  @spec peer_addr(t) :: t
+  @spec peer_addr(t) :: {:inet.ip_address(), :inet.port_number()}
   def peer_addr(conn) do
     case :inet.peername(conn.socket) do
       {:ok, {addr, port}} ->
-        {stringify_addr(addr), port}
+        {addr, port}
 
       {:error, reason} ->
         raise """
         Unsupported descriptor type, got: #{inspect(reason)}
         """
     end
-  end
-
-  defp stringify_addr(addr) do
-    addr
-    |> :inet_parse.ntoa()
-    |> to_string()
   end
 end
