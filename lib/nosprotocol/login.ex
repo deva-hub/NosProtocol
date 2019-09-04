@@ -1,8 +1,15 @@
 defmodule NosProtocol.Login do
+  @moduledoc """
+  Processless NosTale client for the Login protocol.
+  """
   alias NosProtocol.Conn
 
-  def open(socket, transport, options \\ []) do
-    crypto = Keyword.fetch!(options, :crypto)
+  @type option :: {:crypto, module}
+  @type options :: [option]
+
+  @spec open(:inet.socket(), module, options)
+  def open(socket, transport, opts \\ []) do
+    crypto = Keyword.fetch!(opts, :crypto)
 
     conn = %Conn{
       socket: socket,
@@ -19,6 +26,15 @@ defmodule NosProtocol.Login do
         {:error, {:socket_error, reason}}
     end
   end
+
+  @type packet :: binary
+  @type packets :: [packet]
+
+  @spec stream(Conn.t(), term) ::
+          {:ok, Conn.t(), packets}
+          | {:error, Conn.t(), term, packets}
+          | :unknown
+  def stream(conn, message)
 
   def stream(%Conn{socket: socket} = conn, {tag, socket, data})
       when tag in [:tcp, :ssl] do
@@ -40,6 +56,8 @@ defmodule NosProtocol.Login do
       when tag in [:tcp_error, :ssl_error] do
     handle_error(conn, conn.transport.wrap_error(reason))
   end
+
+  def stream(_conn, _message), do: :unknown
 
   defp handle_data(conn, data) do
     packet = String.split(conn.crypto.decrypt(data))
