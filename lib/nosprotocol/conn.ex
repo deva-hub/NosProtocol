@@ -53,17 +53,6 @@ defmodule NosProtocol.Conn do
     %{conn | state: state}
   end
 
-  @spec render(t, module, any, keyword) :: t
-  def render(conn, encoder, template, param) do
-    param = Enum.into(param, %{})
-
-    Enum.reduce(
-      encoder.render(template, param),
-      conn,
-      &send_packet(&2, &1)
-    )
-  end
-
   @spec send_packet(t, keyword) :: t
   def send_packet(conn, data) do
     data = conn.encoder.encode(data)
