@@ -24,7 +24,7 @@ defmodule NosProtocol.Login do
         {:ok, conn}
 
       {:error, reason} ->
-        {:error, {:socket_error, reason}}
+        {:error, {:socket, reason}}
     end
   end
 
