@@ -9,7 +9,7 @@ defmodule NosProtocol.Conn do
 
   defstruct socket: nil,
             transport: nil,
-            encoder: nil,
+            codec: nil,
             private: %{},
             assigns: %{},
             state: :open
@@ -17,7 +17,7 @@ defmodule NosProtocol.Conn do
   @type t :: %__MODULE__{
           socket: :inet.socket(),
           transport: module,
-          encoder: module,
+          codec: module,
           private: map,
           assigns: map,
           state: atom
@@ -51,33 +51,5 @@ defmodule NosProtocol.Conn do
   def put_state(%__MODULE__{} = conn, state)
       when is_atom(state) do
     %{conn | state: state}
-  end
-
-  @spec send_packet(t, keyword) :: t
-  def send_packet(conn, data) do
-    data = conn.encoder.encode(data)
-
-    case conn.transport.send(conn.socket, data) do
-      :ok ->
-        conn
-
-      {:error, :closed} ->
-        raise """
-        Can't send data to a closed socket.
-        """
-    end
-  end
-
-  @spec peer_addr(t) :: {:inet.ip_address(), :inet.port_number()}
-  def peer_addr(conn) do
-    case :inet.peername(conn.socket) do
-      {:ok, {addr, port}} ->
-        {addr, port}
-
-      {:error, reason} ->
-        raise """
-        Unsupported descriptor type, got: #{inspect(reason)}
-        """
-    end
   end
 end

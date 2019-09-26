@@ -4,18 +4,18 @@ defmodule NosProtocol.Login do
   """
   alias NosProtocol.Conn
 
-  @type option :: {:encoder, module}
+  @type option :: {:codec, module}
   @type options :: [option]
 
-  @spec open(:inet.socket(), module, options) ::
-          {:ok, Conn.t()} | {:error, term}
-  def open(socket, transport, opts \\ []) do
-    encoder = Keyword.fetch!(opts, :encoder)
+  @spec connect(:inet.socket(), module, options) ::
+          {:ok, Conn.t()} | {:error, any}
+  def connect(socket, transport, opts \\ []) do
+    codec = Keyword.fetch!(opts, :codec)
 
     conn = %Conn{
       socket: socket,
       transport: transport,
-      encoder: encoder,
+      codec: codec,
       state: :open
     }
 
@@ -28,15 +28,11 @@ defmodule NosProtocol.Login do
     end
   end
 
-  @type packet :: binary
-  @type packets :: [packet]
+  @type responses :: [binary]
 
-  @spec stream(Conn.t(), term) ::
-          {:ok, Conn.t(), packets}
-          | {:error, Conn.t(), term, packets}
-          | :unknown
-  def stream(conn, message)
-
+  @spec stream(Conn.t(), {:tcp | :ssl, :inet.socket(), binary}) ::
+          {:ok, Conn.t(), responses}
+          | {:error, Conn.t(), term, responses}
   def stream(%Conn{socket: socket} = conn, {tag, socket, data})
       when tag in [:tcp, :ssl] do
     case conn.transport.setopts(conn.socket, active: :once) do
@@ -48,20 +44,33 @@ defmodule NosProtocol.Login do
     end
   end
 
+  @spec stream(Conn.t(), {:tcp_closed | :ssl_closed, :inet.socket(), binary}) ::
+          {:ok, Conn.t(), responses}
   def stream(%Conn{socket: socket} = conn, {tag, socket})
       when tag in [:tcp_closed, :ssl_closed] do
     handle_close(conn)
   end
 
+  @spec stream(Conn.t(), {:tcp_error | :ssl_error, :inet.socket(), binary}) ::
+          {:error, Conn.t(), term, responses}
   def stream(%Conn{socket: socket} = conn, {tag, socket, reason})
       when tag in [:tcp_error, :ssl_error] do
     handle_error(conn, conn.transport.wrap_error(reason))
   end
 
-  def stream(_conn, _message), do: :unknown
+  @spec stream(Conn.t(), term) :: :unknown
+  def stream(_conn, _message),
+    do: :unknown
+
+  @spec send(t, keyword) :: :ok | {:error, any}
+  def send(conn, data) do
+    map = Enum.into(data, %{})
+    iodata = conn.codec.encode(map)
+    conn.transport.send(conn.socket, iodata)
+  end
 
   defp handle_data(conn, data) do
-    packet = String.split(conn.encoder.encode(data))
+    packet = String.split(conn.codec.encode(data))
     {:ok, conn, [{:packet, packet}]}
   end
 
