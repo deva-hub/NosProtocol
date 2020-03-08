@@ -102,9 +102,9 @@ defmodule NosProtocol.World do
   end
 
   defp parse(socket, packet) do
-    [transaction_id, event_id, packet] = String.split(packet, " ", parts: 3)
+    [transaction_id, event, packet] = String.split(packet, " ", parts: 3)
 
-    case socket.handle(event_id, NosLib.deserialize(packet), %{
+    case socket.handle(event, NosLib.deserialize(packet), %{
            socket
            | transaction_id: transaction_id
          }) do
