@@ -96,18 +96,16 @@ defmodule NosProtocol.World do
     [username, _, password, transaction_id] = String.split(packet)
 
     socket.connect(
-      %{socket.stream | username: username, password: password}
-      %{socket | stream: nil, transaction_id: transaction_id},
+      %{socket.stream | username: username, password: password},
+      %{socket | stream: nil, transaction_id: transaction_id}
     )
   end
 
   defp parse(socket, packet) do
     [transaction_id, event, packet] = String.split(packet, " ", parts: 3)
+    socket = %{socket | transaction_id: transaction_id}
 
-    case socket.handle(event, NosLib.deserialize(packet), %{
-           socket
-           | transaction_id: transaction_id
-         }) do
+    case socket.handle(event, NosLib.deserialize(packet), socket) do
       {:ok, socket} ->
         loog(socket)
 

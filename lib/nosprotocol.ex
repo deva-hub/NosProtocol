@@ -6,7 +6,7 @@ defmodule NosProtocol do
 
     protocol_options = Keyword.get(opts, :protocol_options, [])
     transport = Keyword.get(opts, :transport, :ranch_tcp)
-    transport_options = Keyword.get(opts, :transport_options, [port: 4123])
+    transport_options = Keyword.get(opts, :transport_options, port: 4123)
 
     ref = Keyword.get(opts, :ref) || build_ref(protocol, transport)
 
