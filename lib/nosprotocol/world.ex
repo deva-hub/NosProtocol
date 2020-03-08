@@ -1,7 +1,7 @@
 defmodule NosProtocol.World do
   require Logger
   alias NosLib.{Crypto, ErrorMessage}
-  alias NosProtocol.World.Socket
+  alias NosProtocol.World.{Handshake, Socket}
 
   @type reply :: map()
   @type params :: map()
