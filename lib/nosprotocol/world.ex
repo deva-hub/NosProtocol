@@ -1,7 +1,7 @@
-defmodule NosProtocol.Portal do
+defmodule NosProtocol.World do
   require Logger
   alias NosLib.{Crypto, ErrorMessage}
-  alias NosProtocol.Portal.Socket
+  alias NosProtocol.World.Socket
 
   @type reply :: map()
   @type params :: map()
@@ -31,18 +31,8 @@ defmodule NosProtocol.Portal do
       end
 
       @doc false
-      def terminate(:bad_case, state) do
-        Socket.send_packet(socket, NosLib.serialize(%ErrorMessage{reason: :bad_case}))
-        NosProtocol.Portal.__terminate__(reason, state)
-      end
-
-      def terminate(:outdated_client, state) do
-        Socket.send_packet(socket, NosLib.serialize(%ErrorMessage{reason: :outdated_client}))
-        NosProtocol.Portal.__terminate__(reason, state)
-      end
-
-      def terminate(:corrupted_client, state) do
-        Socket.send_packet(socket, NosLib.serialize(%ErrorMessage{reason: :corrupted_client}))
+      def terminate(:session_already_used, state) do
+        send_packet(socket, NosLib.serialize(%ErrorMessage{reason: :session_already_used}))
         NosProtocol.Portal.__terminate__(reason, state)
       end
 
@@ -62,6 +52,10 @@ defmodule NosProtocol.Portal do
     :ok = :proc_lib.init_ack({:ok, self()})
     :ok = :ranch.accept_ack(ref)
 
+    unless handler = opts[:handler] do
+      raise ArgumentError, "missing :handler option on use NosProtocol.World"
+    end
+
     crypto = Keyword.get(opts, :crypto, Crypto.Login)
     timeout = Keyword.get(opts, :timeout, 300_000)
 
@@ -70,7 +64,9 @@ defmodule NosProtocol.Portal do
       crypto: crypto,
       transport: transport,
       transport_pid: parent,
-      timeout: timeout
+      timeout: timeout,
+      handler: handler,
+      stream: %Handshake{}
     }
 
     module.loop(socket)
@@ -87,50 +83,41 @@ defmodule NosProtocol.Portal do
     end
   end
 
-  defp parse(module, socket, <<"NsTeST", packet::binary>>) do
-    handle(module, socket, NosLib.deserialize(packet))
+  defp parse(%{stream: %Handshake{session_id: nil}} = socket, packet) do
+    loop(%{
+      socket
+      | key_base: packet,
+        session_id: packet,
+        stream: %{socket.stream | session_id: packet}
+    })
   end
 
-  defp parse(module, socket, packet) do
-    module.terminate(:bad_case, socket)
+  defp parse(%{stream: %Handshake{username: nil, password: nil}} = socket, packet) do
+    [username, _, password, transaction_id] = String.split(packet)
+
+    socket.connect(
+      %{socket.stream | username: username, password: password}
+      %{socket | stream: nil, transaction_id: transaction_id},
+    )
   end
 
-  defp handle(module, socket, packet) do
-    case {client_version?(packet.client_vsn),
-          client_checksum?(packet.username, packet.client_hash)} do
-      {false, _} ->
-        module.terminate(:outdated_client, socket)
+  defp parse(socket, packet) do
+    [transaction_id, event_id, packet] = String.split(packet, " ", parts: 3)
 
-      {_, false} ->
-        module.terminate(:corrupted_client, socket)
+    case socket.handle(event_id, NosLib.deserialize(packet), %{
+           socket
+           | transaction_id: transaction_id
+         }) do
+      {:ok, socket} ->
+        loog(socket)
 
-      {true, true} ->
-        case module.connect(packet, socket) do
-          {:ok, reply, socket} ->
-            Socket.send_packet(socket, NosLib.serialize(reply))
-            module.terminate(:normal, socket)
-
-          {:error, reply} ->
-            Socket.send_packet(socket, NosLib.serialize(%ErrorMessage{reason: reason}))
-            Socket.close(socket)
-            module.terminate(:shutdown, socket)
-        end
+      {:error, reason} ->
+        module.terminate(:session_already_used, socket)
     end
   end
 
   def __terminate__(_, socket) do
     Socket.close(socket)
     :ok
-  end
-
-  defp client_version?(version) do
-    required_version = Application.fetch_env!(:gateway, :client_version)
-    Version.match?(version, required_version)
-  end
-
-  defp client_checksum?(username, client_hash) do
-    required_hash = Application.fetch_env!(:gateway, :client_hash)
-    expected_hash = :crypto.hash(:md5, required_hash <> username) |> Base.encode16()
-    expected_hash == client_hash
   end
 end

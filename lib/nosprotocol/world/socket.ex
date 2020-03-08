@@ -1,9 +1,12 @@
-defmodule NosProtocol.Portal.Socket do
+defmodule NosProtocol.World.Socket do
   defstruct socket: nil,
+            handler: nil,
             crypto: nil,
+            stream: nil,
             transport: nil,
             transport_pid: nil,
             assigns: %{},
+            key_base: "",
             timeout: 0
 
   def assign(%__MODULE__{} = socket, key, value) when is_atom(key) do
@@ -29,8 +32,8 @@ defmodule NosProtocol.Portal.Socket do
     end
   end
 
-  def send(%__MODULE__{} = socket, packet) do
-    socket.transport.send(socket.socket, socket.crypto.encrypt(packet))
+  def send_packet(%__MODULE__{} = socket, packet) do
+    socket.transport.send(socket.socket, socket.crypto.encrypt(packet, key_base: socket.key_base))
   end
 
   def close(%__MODULE__{} = socket) do
