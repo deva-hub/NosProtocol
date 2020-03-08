@@ -32,7 +32,7 @@ defmodule NosProtocol.World do
 
       @doc false
       def terminate(:session_already_used, state) do
-        send_packet(socket, NosLib.serialize(%ErrorMessage{reason: :session_already_used}))
+        reply(socket, NosLib.serialize(%ErrorMessage{reason: :session_already_used}))
         NosProtocol.Portal.__terminate__(reason, state)
       end
 
@@ -73,7 +73,7 @@ defmodule NosProtocol.World do
   end
 
   def __loop__(module, socket) do
-    case Socket.recv_packet(socket) do
+    case Socket.recv(socket) do
       {:ok, packet} ->
         Logger.info(["PACKET ", packet])
         parse(module, socket, packet)

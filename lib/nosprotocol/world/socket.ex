@@ -13,7 +13,7 @@ defmodule NosProtocol.World.Socket do
     %{socket | assigns: Map.put(socket.assigns, key, value)}
   end
 
-  def recv_packet(%__MODULE__{} = socket) do
+  def recv(%__MODULE__{} = socket) do
     :ok = socket.transport.setopts(socket.socket, active: :once)
     {ok, closed, error} = socket.transport.messages()
 
@@ -32,7 +32,7 @@ defmodule NosProtocol.World.Socket do
     end
   end
 
-  def send_packet(%__MODULE__{} = socket, packet) do
+  def reply(%__MODULE__{} = socket, packet) do
     socket.transport.send(socket.socket, socket.crypto.encrypt(packet, key_base: socket.key_base))
   end
 

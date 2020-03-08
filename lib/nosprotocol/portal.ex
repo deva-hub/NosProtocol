@@ -32,17 +32,17 @@ defmodule NosProtocol.Portal do
 
       @doc false
       def terminate(:bad_case, state) do
-        Socket.send_packet(socket, NosLib.serialize(%ErrorMessage{reason: :bad_case}))
+        Socket.reply(socket, NosLib.serialize(%ErrorMessage{reason: :bad_case}))
         NosProtocol.Portal.__terminate__(reason, state)
       end
 
       def terminate(:outdated_client, state) do
-        Socket.send_packet(socket, NosLib.serialize(%ErrorMessage{reason: :outdated_client}))
+        Socket.reply(socket, NosLib.serialize(%ErrorMessage{reason: :outdated_client}))
         NosProtocol.Portal.__terminate__(reason, state)
       end
 
       def terminate(:corrupted_client, state) do
-        Socket.send_packet(socket, NosLib.serialize(%ErrorMessage{reason: :corrupted_client}))
+        Socket.reply(socket, NosLib.serialize(%ErrorMessage{reason: :corrupted_client}))
         NosProtocol.Portal.__terminate__(reason, state)
       end
 
@@ -77,7 +77,7 @@ defmodule NosProtocol.Portal do
   end
 
   def __loop__(module, socket) do
-    case Socket.recv_packet(socket) do
+    case Socket.recv(socket) do
       {:ok, packet} ->
         Logger.info(["PACKET ", packet])
         parse(module, socket, packet)
@@ -107,11 +107,11 @@ defmodule NosProtocol.Portal do
       {true, true} ->
         case module.connect(packet, socket) do
           {:ok, reply, socket} ->
-            Socket.send_packet(socket, NosLib.serialize(reply))
+            Socket.reply(socket, NosLib.serialize(reply))
             module.terminate(:normal, socket)
 
           {:error, reply} ->
-            Socket.send_packet(socket, NosLib.serialize(%ErrorMessage{reason: reason}))
+            Socket.reply(socket, NosLib.serialize(%ErrorMessage{reason: reason}))
             Socket.close(socket)
             module.terminate(:shutdown, socket)
         end

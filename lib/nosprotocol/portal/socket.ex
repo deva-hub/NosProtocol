@@ -10,7 +10,7 @@ defmodule NosProtocol.Portal.Socket do
     %{socket | assigns: Map.put(socket.assigns, key, value)}
   end
 
-  def recv_packet(%__MODULE__{} = socket) do
+  def recv(%__MODULE__{} = socket) do
     :ok = socket.transport.setopts(socket.socket, active: :once)
     {ok, closed, error} = socket.transport.messages()
 
