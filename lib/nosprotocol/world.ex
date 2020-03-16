@@ -1,4 +1,7 @@
 defmodule NosProtocol.World do
+  @moduledoc """
+  World protocol socket manager.
+  """
   require Logger
   alias NosLib.{Crypto, ErrorMessage}
   alias NosProtocol.World.{Handshake, Socket}
@@ -12,7 +15,7 @@ defmodule NosProtocol.World do
     quote bind_quoted: [opts: opts] do
       @behaviour :ranch_protocol
       @behaviour NosProtocol.Portal
-      import NosProtocol.Socket
+      import NosProtocol.World.Socket
 
       @impl true
       @doc false
@@ -31,13 +34,13 @@ defmodule NosProtocol.World do
       end
 
       @doc false
-      def terminate(:session_already_used, state) do
+      def terminate({:shutdown, :session_already_used}, socket) do
         reply(socket, NosLib.serialize(%ErrorMessage{reason: :session_already_used}))
-        NosProtocol.Portal.__terminate__(reason, state)
+        NosProtocol.Portal.__terminate__({:shutdown, :handshake_error}, socket)
       end
 
-      def terminate(reason, state) do
-        NosProtocol.Portal.__terminate__(reason, state)
+      def terminate(reason, socket) do
+        NosProtocol.Portal.__terminate__(reason, socket)
       end
 
       defoverridable terminate: 2
@@ -83,8 +86,8 @@ defmodule NosProtocol.World do
     end
   end
 
-  defp parse(%{stream: %Handshake{session_id: nil}} = socket, packet) do
-    loop(%{
+  defp parse(module, %{stream: %Handshake{session_id: nil}} = socket, packet) do
+    module.loop(%{
       socket
       | key_base: packet,
         session_id: packet,
@@ -92,25 +95,26 @@ defmodule NosProtocol.World do
     })
   end
 
-  defp parse(%{stream: %Handshake{username: nil, password: nil}} = socket, packet) do
+  defp parse(module, %{stream: %Handshake{username: nil, password: nil}} = socket, packet) do
     [username, _, password, transaction_id] = String.split(packet)
 
-    socket.connect(
+    module.connect(
       %{socket.stream | username: username, password: password},
       %{socket | stream: nil, transaction_id: transaction_id}
     )
   end
 
-  defp parse(socket, packet) do
+  defp parse(module, socket, packet) do
     [transaction_id, event, packet] = String.split(packet, " ", parts: 3)
     socket = %{socket | transaction_id: transaction_id}
 
-    case socket.handle(event, NosLib.deserialize(packet), socket) do
+    case module.handle(event, NosLib.deserialize(packet), socket) do
       {:ok, socket} ->
-        loog(socket)
+        module.loop(socket)
 
-      {:error, reason} ->
-        module.terminate(:session_already_used, socket)
+      {:error, reply} ->
+        Socket.reply(socket, NosLib.serialize(reply))
+        module.terminate({:shutdown, :session_already_used}, socket)
     end
   end
 

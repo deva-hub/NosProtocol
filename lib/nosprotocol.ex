@@ -1,4 +1,8 @@
 defmodule NosProtocol do
+  @moduledoc """
+  Entrypoint to a protocol.
+  """
+
   def child_spec(opts) do
     unless protocol = opts[:protocol] do
       raise ArgumentError, "missing :protocol option on use NosProtocol"

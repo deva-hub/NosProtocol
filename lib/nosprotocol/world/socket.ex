@@ -1,5 +1,19 @@
 defmodule NosProtocol.World.Socket do
-  defstruct socket: nil,
+  @moduledoc false
+
+  @type t :: %__MODULE__{
+          socket: :inet.socket(),
+            handler: module,
+          crypto: module,
+          stream: term,
+          transport: module,
+          transport_pid: pid,
+          assigns: map,
+          key_base: String.t(),
+          timeout: non_neg_integer
+        }
+
+        defstruct socket: nil,
             handler: nil,
             crypto: nil,
             stream: nil,

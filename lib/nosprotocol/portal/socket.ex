@@ -1,4 +1,15 @@
 defmodule NosProtocol.Portal.Socket do
+  @moduledoc false
+
+  @type t :: %__MODULE__{
+          socket: :inet.socket(),
+          crypto: module,
+          transport: module,
+          transport_pid: pid,
+          assigns: map,
+          timeout: non_neg_integer
+        }
+
   defstruct socket: nil,
             crypto: nil,
             transport: nil,
@@ -29,7 +40,7 @@ defmodule NosProtocol.Portal.Socket do
     end
   end
 
-  def send(%__MODULE__{} = socket, packet) do
+  def reply(%__MODULE__{} = socket, packet) do
     socket.transport.send(socket.socket, socket.crypto.encrypt(packet))
   end
 

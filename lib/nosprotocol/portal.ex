@@ -1,4 +1,7 @@
 defmodule NosProtocol.Portal do
+  @moduledoc """
+  Portal protocol socket manager.
+  """
   require Logger
   alias NosLib.{Crypto, ErrorMessage}
   alias NosProtocol.Portal.Socket
@@ -12,7 +15,7 @@ defmodule NosProtocol.Portal do
     quote bind_quoted: [opts: opts] do
       @behaviour :ranch_protocol
       @behaviour NosProtocol.Portal
-      import NosProtocol.Socket
+      import NosProtocol.Portal.Socket
 
       @impl true
       @doc false
@@ -31,23 +34,23 @@ defmodule NosProtocol.Portal do
       end
 
       @doc false
-      def terminate(:bad_case, state) do
+      def terminate({:shutdown, :bad_case}, socket) do
         Socket.reply(socket, NosLib.serialize(%ErrorMessage{reason: :bad_case}))
-        NosProtocol.Portal.__terminate__(reason, state)
+        NosProtocol.Portal.__terminate__({:shutdown, :handshake_error}, socket)
       end
 
-      def terminate(:outdated_client, state) do
+      def terminate({:shutdown, :outdated_client}, socket) do
         Socket.reply(socket, NosLib.serialize(%ErrorMessage{reason: :outdated_client}))
-        NosProtocol.Portal.__terminate__(reason, state)
+        NosProtocol.Portal.__terminate__({:shutdown, :handshake_error}, socket)
       end
 
-      def terminate(:corrupted_client, state) do
+      def terminate({:shutdown, :corrupted_client}, socket) do
         Socket.reply(socket, NosLib.serialize(%ErrorMessage{reason: :corrupted_client}))
-        NosProtocol.Portal.__terminate__(reason, state)
+        NosProtocol.Portal.__terminate__({:shutdown, :handshake_error}, socket)
       end
 
-      def terminate(reason, state) do
-        NosProtocol.Portal.__terminate__(reason, state)
+      def terminate(reason, socket) do
+        NosProtocol.Portal.__terminate__(reason, socket)
       end
 
       defoverridable terminate: 2
@@ -91,18 +94,18 @@ defmodule NosProtocol.Portal do
     handle(module, socket, NosLib.deserialize(packet))
   end
 
-  defp parse(module, socket, packet) do
-    module.terminate(:bad_case, socket)
+  defp parse(module, socket, _) do
+    module.terminate({:shutdown, :bad_case}, socket)
   end
 
   defp handle(module, socket, packet) do
     case {client_version?(packet.client_vsn),
           client_checksum?(packet.username, packet.client_hash)} do
       {false, _} ->
-        module.terminate(:outdated_client, socket)
+        module.terminate({:shutdown, :outdated_client}, socket)
 
       {_, false} ->
-        module.terminate(:corrupted_client, socket)
+        module.terminate({:shutdown, :corrupted_client}, socket)
 
       {true, true} ->
         case module.connect(packet, socket) do
@@ -111,7 +114,7 @@ defmodule NosProtocol.Portal do
             module.terminate(:normal, socket)
 
           {:error, reply} ->
-            Socket.reply(socket, NosLib.serialize(%ErrorMessage{reason: reason}))
+            Socket.reply(socket, NosLib.serialize(reply))
             Socket.close(socket)
             module.terminate(:shutdown, socket)
         end
